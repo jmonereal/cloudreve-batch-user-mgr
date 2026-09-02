@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cloudreve 批量管理用户</title>
+<style>
+:root{--bg:#0b0b12;--card:#14141e;--border:#2a2a3a;--fg:#e0e0ea;--muted:#7a7a90;--accent:#00d4aa;--danger:#ff5f57;--warn:#ffb400}
+*{box-sizing:border-box}body{margin:0;font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--fg)}
+.wrap{max-width:1200px;margin:0 auto;padding:20px}
+h1{margin:0 0 16px;font-size:22px}
+h3{margin:0 0 10px}
+.row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;align-items:center}
+.btn{display:inline-flex;gap:6px;padding:8px 14px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--fg);cursor:pointer;font-size:13px;transition:.2s}
+.btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.pri{border-color:var(--accent);color:var(--accent)}.btn.pri:hover:not(:disabled){background:rgba(0,212,170,.1)}
+.btn.danger{border-color:var(--danger);color:var(--danger)}
+.btn.warn{border-color:var(--warn);color:var(--warn)}
+.btn.ok{border-color:#4ade80;color:#4ade80}
+.input,select.input{padding:8px 12px;border-radius:6px;border:1px solid var(--border);background:#0e0e16;color:var(--fg);font-size:13px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:8px 10px;border-bottom:1px solid var(--border);text-align:left}th{color:var(--muted)}
+.badge{display:inline-block;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600}
+.badge.on{background:rgba(0,212,170,.15);color:#00d4aa}
+.badge.gray{background:rgba(122,122,144,.15);color:#7a7a90}
+.badge.off{background:rgba(255,95,87,.15);color:#ff5f57}
+.muted{color:var(--muted);font-size:12px}
+#msg{margin-top:16px;min-height:22px}
+#log{max-height:220px;overflow:auto;font-size:12px;line-height:1.7;font-family:Consolas,monospace}
+#log .ok{color:#00d4aa}#log .err{color:#ff5f57}#log .info{color:#7a7a90}
+#login{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:99}
+#login .box{width:340px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:28px}
+#login h2{margin:0 0 18px;font-size:18px;text-align:center}
+#login .input{width:100%;margin-bottom:12px}
+details summary{cursor:pointer;color:var(--muted);font-size:12px;margin-top:8px}
+textarea{width:100%;min-height:90px;border-radius:6px;border:1px solid var(--border);background:#0e0e16;color:var(--fg);font-family:Consolas,monospace;font-size:12px;padding:8px;margin-top:8px}
+</style>
+</head>
+<body>
+
+<div id="login" style="display:none">
+  <div class="box">
+    <h2 data-i18n="loginTitle"></h2>
+    <input class="input" id="liEmail" type="email" autocomplete="username" data-i18n-ph="loginEmailPh">
+    <input class="input" id="liPass" type="password" autocomplete="current-password" data-i18n-ph="loginPassPh">
+    <button class="btn pri" id="liBtn" style="width:100%;justify-content:center" data-i18n="loginBtn"></button>
+    <div class="muted" style="margin-top:10px;text-align:center" id="liErr"></div>
+  </div>
+</div>
+
+<div class="wrap">
+  <h1><span data-i18n="pageTitle"></span>
+    <button class="btn" id="btnLang" style="float:right;font-size:12px;padding:4px 10px" title="Switch language / 切换语言">EN</button>
+    <button class="btn" id="btnBack" style="float:right;font-size:12px;padding:4px 10px;display:none" data-i18n="back"></button>
+    <button class="btn" id="btnLogout" style="float:right;font-size:12px;padding:4px 10px" data-i18n="logout"></button>
+  </h1>
+
+  <div class="row">
+    <button class="btn pri" id="btnRefresh" data-i18n="refresh"></button>
+    <button class="btn danger" id="btnDel" disabled data-i18n="delSel"></button>
+    <button class="btn warn" id="btnBan" disabled data-i18n="banSel"></button>
+    <button class="btn ok" id="btnUnban" disabled data-i18n="unbanSel"></button>
+    <span class="muted" style="margin-left:auto" id="selInfo"></span>
+  </div>
+
+  <div class="card">
+    <h3 data-i18n="csvTitle"></h3>
+    <p class="muted" style="margin:0 0 10px" data-i18n-html="csvDesc"></p>
+    <input type="file" id="fCsv" accept=".csv,.txt" style="display:none">
+    <input class="input" id="csvPath" readonly style="cursor:pointer" onclick="document.getElementById('fCsv').click()" data-i18n-ph="csvPathPh">
+    <button class="btn pri" id="btnImport" style="margin-left:8px" disabled data-i18n="importBtn"></button>
+    <details><summary data-i18n="pasteToggle"></summary>
+      <textarea id="csvText" data-i18n-ph="csvSample"></textarea>
+      <button class="btn" id="btnParseText" style="margin-top:6px" data-i18n="parseBtn"></button>
+    </details>
+    <div id="log" style="display:none;margin-top:10px"></div>
+  </div>
+
+  <div class="card">
+    <h3 data-i18n="listTitle"></h3>
+    <div class="row" style="margin-bottom:10px">
+      <input class="input" id="kw" style="width:260px" data-i18n-ph="kwPh">
+      <select class="input" id="fGroup" style="width:140px"><option value=""></option></select>
+      <select class="input" id="fStatus" style="width:130px">
+        <option value="" data-i18n="allStatus"></option>
+        <option value="active" data-i18n="stActive"></option>
+        <option value="inactive" data-i18n="stInactive"></option>
+        <option value="manual_banned" data-i18n="stBanned"></option>
+        <option value="sys_banned" data-i18n="stSysBanned"></option>
+      </select>
+      <select class="input" id="fSize" style="width:100px">
+        <option>10</option><option>25</option><option>50</option><option>100</option>
+      </select>
+      <button class="btn" id="btnSort" title="Sort by ID">ID ↓</button>
+    </div>
+    <table><thead><tr>
+      <th><input type="checkbox" id="allSel"></th>
+      <th>ID</th><th data-i18n="thNick"></th><th data-i18n="thEmail"></th>
+      <th data-i18n="thGroup"></th><th data-i18n="thStatus"></th><th data-i18n="thCreated"></th><th data-i18n="thOps"></th>
+    </tr></thead><tbody id="tbody"></tbody></table>
+    <div class="row" style="margin:10px 0 0">
+      <button class="btn" id="btnPrev" style="padding:4px 10px" data-i18n="prev"></button>
+      <span class="muted" id="pgInfo"></span>
+      <button class="btn" id="btnNext" style="padding:4px 10px" data-i18n="next"></button>
+    </div>
+  </div>
+
+  <div id="msg"></div>
+</div>
+
+<script>
+'use strict';
+const API = '/api/v4';
+const LS = 'crbm_session';
+
+/* ================= i18n ================= */
+const I18N = {
+  zh: {
+    loginTitle: '👥 Cloudreve 管理登录', loginEmailPh: '管理员邮箱', loginPassPh: '密码',
+    loginBtn: '登 录', fillRequired: '请输入邮箱和密码', loggingIn: '登录中...',
+    loginFail: '登录失败：', pageTitle: 'Cloudreve 批量管理用户',
+    logout: '退出登录', back: '‹ 返回后台',
+    refresh: '🔄 刷新列表', delSel: '🗑 批量删除', banSel: '🚫 批量封禁', unbanSel: '✅ 批量解禁',
+    selectedOf: '已选 <b>{n}</b> / 共 <b>{total}</b>',
+    csvTitle: '📤 批量创建用户 (CSV)',
+    csvDesc: '表头自动识别，支持 <code>username/nick</code>、<code>email</code>、<code>password</code>、<code>role(admin|user)</code> 四列（顺序任意）。role 留空默认 user，密码留空默认 Temp123456。',
+    csvPathPh: '点击选择 CSV 文件', importBtn: '导入并创建',
+    pasteToggle: '或直接粘贴 CSV 内容', parseBtn: '解析粘贴内容',
+    csvSample: 'username,email,password,role\nzhang3,zhang3@example.com,Temp123456,user\nli4,li4@example.com,Temp123456,admin',
+    listTitle: '👀 用户列表', kwPh: '搜索：含@按邮箱，否则按昵称...',
+    allGroups: '全部用户组', allStatus: '全部状态',
+    stActive: '正常', stInactive: '未激活', stBanned: '已封禁', stSysBanned: '系统封禁',
+    thNick: '昵称', thEmail: '邮箱', thGroup: '用户组', thStatus: '状态', thCreated: '注册时间', thOps: '操作',
+    noData: '暂无数据', selfRow: '当前账号',
+    selfRowTitle: '不能对当前登录账号执行删除/封禁',
+    prev: '‹ 上一页', next: '下一页 ›', pageInfo: '第 {n} 页',
+    importConfirm: '将创建 {n} 个用户，继续？', importStart: '开始导入 {n} 个用户...',
+    importOk: '✔ {email} 创建成功 (id={id}, 组={group})',
+    importOkEn: '✔ {email} created (id={id}, group={group})',
+    importFail: '✘ {email} 失败：{err}',
+    importDone: '—— 导入完成：成功 {ok}/{n} ——', importDoneToast: '导入完成：成功 {ok}/{n}',
+    parsedRows: '解析出 {n} 行，点击「导入并创建」开始',
+    noRows: '未解析到有效数据行（需含合法 email 列）',
+    delConfirmOne: '确定删除用户 #{id}？此操作不可恢复！',
+    delConfirmMany: '确定删除选中的 {n} 个用户？此操作不可恢复！',
+    delOk: '删除成功', delFail: '删除失败：',
+    banConfirm: '确认封禁选中的 {n} 个用户？', unbanConfirm: '确认解封选中的 {n} 个用户？',
+    banned: '封', unbanned: '解',
+    banDone: '用户 #{id} 已封禁', unbanDone: '用户 #{id} 已解封',
+    opFail: '操作失败：', batchDone: '完成：{ok}/{n}', batchFailSuffix: '，失败：',
+    loadFail: '加载失败：', sessionExpired: '登录已失效，请重新登录',
+    cannotDeleteSelf: '不能删除当前登录账号',
+    groupsLoadFail: '用户组加载失败(不影响其他功能):',
+  },
+  en: {
+    loginTitle: '👥 Cloudreve Admin Login', loginEmailPh: 'Admin email', loginPassPh: 'Password',
+    loginBtn: 'Sign In', fillRequired: 'Please enter email and password', loggingIn: 'Signing in...',
+    loginFail: 'Sign-in failed: ', pageTitle: 'Cloudreve Bulk User Manager',
+    logout: 'Sign out', back: '‹ Back to Admin',
+    refresh: '🔄 Refresh', delSel: '🗑 Delete Selected', banSel: '🚫 Ban Selected', unbanSel: '✅ Unban Selected',
+    selectedOf: '<b>{n}</b> selected / <b>{total}</b> total',
+    csvTitle: '📤 Bulk Create Users (CSV)',
+    csvDesc: 'Headers are auto-detected: <code>username/nick</code>, <code>email</code>, <code>password</code>, <code>role(admin|user)</code> in any order. Empty role defaults to user; empty password defaults to Temp123456.',
+    csvPathPh: 'Click to choose a CSV file', importBtn: 'Import & Create',
+    pasteToggle: 'Or paste CSV content directly', parseBtn: 'Parse Pasted Text',
+    csvSample: 'username,email,password,role\nzhang3,zhang3@example.com,Temp123456,user\nli4,li4@example.com,Temp123456,admin',
+    listTitle: '👀 User List', kwPh: 'Search: with @ by email, otherwise by nickname...',
+    allGroups: 'All groups', allStatus: 'All statuses',
+    stActive: 'Active', stInactive: 'Inactive', stBanned: 'Banned', stSysBanned: 'Sys. banned',
+    thNick: 'Nickname', thEmail: 'Email', thGroup: 'Group', thStatus: 'Status', thCreated: 'Created', thOps: 'Actions',
+    noData: 'No data', selfRow: 'Current account',
+    selfRowTitle: 'Cannot delete/ban the currently signed-in account',
+    prev: '‹ Prev', next: 'Next ›', pageInfo: 'Page {n}',
+    importConfirm: 'Create {n} user(s)? Continue?', importStart: 'Importing {n} user(s)...',
+    importOk: '✔ {email} created (id={id}, group={group})',
+    importOkEn: '✔ {email} created (id={id}, group={group})',
+    importFail: '✘ {email} failed: {err}',
+    importDone: '—— Done: {ok}/{n} succeeded ——', importDoneToast: 'Done: {ok}/{n} succeeded',
+    parsedRows: '{n} row(s) parsed. Click "Import & Create" to start',
+    noRows: 'No valid rows (a column with valid email is required)',
+    delConfirmOne: 'Delete user #{id}? This cannot be undone!',
+    delConfirmMany: 'Delete {n} selected user(s)? This cannot be undone!',
+    delOk: 'Deleted', delFail: 'Delete failed: ',
+    banConfirm: 'Ban {n} selected user(s)?', unbanConfirm: 'Unban {n} selected user(s)?',
+    banned: 'Ban', unbanned: 'Unban',
+    banDone: 'User #{id} banned', unbanDone: 'User #{id} unbanned',
+    opFail: 'Action failed: ', batchDone: 'Done: {ok}/{n}', batchFailSuffix: ', failed: ',
+    loadFail: 'Load failed: ', sessionExpired: 'Session expired, please sign in again',
+    cannotDeleteSelf: 'Cannot delete the currently signed-in account',
+    groupsLoadFail: 'Failed to load groups (other features unaffected):',
+  }
+};
+function detectLang() {
+  const saved = localStorage.getItem('crbm_lang');                 // 手动切换优先
+  if (saved === 'zh' || saved === 'en') return saved;
+  const cr = (localStorage.getItem('i18nextLng') || '').toLowerCase();  // 跟随 Cloudreve 设置
+  if (cr) return cr.startsWith('zh') ? 'zh' : 'en';
+  const nav = (navigator.language || 'zh-CN').toLowerCase();       // 浏览器语言兜底
+  return nav.startsWith('zh') ? 'zh' : 'en';
+}
+let lang = detectLang();
+function t(key, p) {
+  let s = (I18N[lang] && I18N[lang][key]) || I18N.zh[key] || key;
+  if (p) for (const k in p) s = s.split('{' + k + '}').join(p[k]);
+  return s;
+}
+function applyI18n() {
+  document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+  document.title = t('pageTitle');
+  document.querySelectorAll('[data-i18n]').forEach(el => el.textContent = t(el.dataset.i18n));
+  document.querySelectorAll('[data-i18n-html]').forEach(el => el.innerHTML = t(el.dataset.i18nHtml));
+  document.querySelectorAll('[data-i18n-ph]').forEach(el => el.placeholder = t(el.dataset.i18nPh));
+  $('fGroup').options[0].textContent = t('allGroups');
+  $('btnLang').textContent = lang === 'zh' ? 'EN' : '中文';
+  $('selInfo').innerHTML = t('selectedOf', {n: selected.size, total: totalItems});
+  $('pgInfo').textContent = t('pageInfo', {n: page});
+}
+
+let session = null;          // {access_token, refresh_token, email, nick}
+let groups = [];             // [{id,name}]
+let users = [], page = 1, dir = 'desc';
+let totalItems = 0;
+let selected = new Set();
+let importRows = null;       // parsed csv rows awaiting confirm
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const isSelf = u => (u.email || '').toLowerCase() === (session?.email || '').toLowerCase();
+function selfId() { const me = users.find(isSelf); return me ? me.id : null; }
+
+function toast(msg, ok = true, ms = 3500) {
+  const m = $('msg');
+  m.innerHTML = `<div style="background:${ok?'rgba(0,212,170,.15)':'rgba(255,95,87,.15)'};color:${ok?'#00d4aa':'#ff5f57'};padding:10px 14px;border-radius:6px;border:1px solid ${ok?'#00d4aa':'#ff5f57'};font-size:13px">${msg}</div>`;
+  if (ms) setTimeout(() => m.innerHTML = '', ms);
+}
+function log(line, cls = 'info') {
+  const el = $('log'); el.style.display = 'block';
+  el.innerHTML += `<div class="${cls}">${line}</div>`;
+  el.scrollTop = el.scrollHeight;
+}
+
+/* ---------- auth ---------- */
+async function rawFetch(method, path, body, token) {
+  const headers = {'Content-Type': 'application/json'};
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  const res = await fetch(API + path, {method, headers, body: body ? JSON.stringify(body) : undefined});
+  const text = await res.text();
+  let data = null;
+  try { data = JSON.parse(text); } catch { throw new Error(`HTTP ${res.status}: ${text.slice(0, 120)}`); }
+  return data;
+}
+
+async function api(method, path, body) {
+  if (!session) throw new Error('Not signed in');
+  let data = await rawFetch(method, path, body, session.access_token);
+  if (data.code === 401) {                       // access token 过期 → 刷新后重试一次
+    const ok = await refresh();
+    if (!ok) { showLogin(); throw new Error(t('sessionExpired')); }
+    data = await rawFetch(method, path, body, session.access_token);
+  }
+  if (data.code !== 0) throw new Error(data.msg || ('code=' + data.code));
+  return data.data;
+}
+
+async function refresh() {
+  try {
+    const d = await rawFetch('POST', '/session/token/refresh', {refresh_token: session.refresh_token});
+    if (d.code === 0 && d.data?.token?.access_token) {
+      session.access_token = d.data.token.access_token;
+      if (d.data.token.refresh_token) session.refresh_token = d.data.token.refresh_token;
+      save(); return true;
+    }
+  } catch {}
+  return false;
+}
+
+function save() { localStorage.setItem(LS, JSON.stringify(session)); }
+function showLogin() {
+  session = null; localStorage.removeItem(LS);
+  $('login').style.display = 'flex'; applyI18n();
+}
+async function doLogin() {
+  const email = $('liEmail').value.trim(), password = $('liPass').value;
+  if (!email || !password) { $('liErr').textContent = t('fillRequired'); return; }
+  $('liBtn').disabled = true; $('liErr').textContent = t('loggingIn');
+  try {
+    const d = await rawFetch('POST', '/session/token', {email, password});
+    if (d.code !== 0) throw new Error(d.msg || 'failed');
+    session = {access_token: d.data.token.access_token, refresh_token: d.data.token.refresh_token,
+               email: d.data.user?.email || email, nick: d.data.user?.nickname || ''};
+    save();
+    $('login').style.display = 'none';
+    await boot();
+  } catch (e) {
+    $('liErr').textContent = t('loginFail') + e.message;
+  } finally { $('liBtn').disabled = false; }
+}
+
+/* ---------- list ---------- */
+function conditions() {
+  const kw = $('kw').value.trim();
+  const c = {user_email: '', user_nick: '', user_group: $('fGroup').value, user_status: $('fStatus').value};
+  if (kw) { if (kw.includes('@')) c.user_email = kw; else c.user_nick = kw; }
+  return c;
+}
+async function load() {
+  try {
+    const d = await api('POST', '/admin/user', {
+      page, page_size: +$('fSize').value,          // 注意：后端 page 从 1 开始（传 0 报 40001）
+      order_by: 'id', order_direction: dir, conditions: conditions()
+    });
+    users = d.users || [];
+    totalItems = d.pagination?.total_items ?? users.length;
+    $('pgInfo').textContent = t('pageInfo', {n: page});
+    $('btnPrev').disabled = page <= 1;
+    $('btnNext').disabled = page >= Math.max(Math.ceil(totalItems / +$('fSize').value), 1);
+    render();
+  } catch (e) { toast(esc(t('loadFail')) + esc(e.message), false); }
+}
+function groupById(gid) { return (groups.find(g => g.id === gid) || {}).name || ('#' + gid); }
+function statusBadge(st) {
+  const map = {active: ['on', 'stActive'], inactive: ['gray', 'stInactive'],
+               manual_banned: ['off', 'stBanned'], sys_banned: ['off', 'stSysBanned']};
+  const m = map[st] || ['gray', null];
+  return `<span class="badge ${m[0]}">${m[1] ? t(m[1]) : esc(st || '?')}</span>`;
+}
+function render() {
+  const tb = $('tbody');
+  tb.innerHTML = users.map(u => {
+    const me = isSelf(u);   // 当前登录账号：禁止删除/封禁自己
+    const ops = me ? `<span class="badge gray">${t('selfRow')}</span>` :
+      `<button class="btn ${u.status === 'active' ? 'warn' : 'ok'}" style="padding:3px 8px;font-size:12px" onclick="toggleBan(${u.id},'${u.status === 'active' ? 'manual_banned' : 'active'}')">${u.status === 'active' ? t('banned') : t('unbanned')}</button>
+      <button class="btn danger" style="padding:3px 8px;font-size:12px" onclick="delOne(${u.id})">🗑</button>`;
+    return `<tr>
+    <td><input type="checkbox" class="ck" data-id="${u.id}" ${selected.has(u.id) ? 'checked' : ''} ${me ? `disabled title="${t('selfRowTitle')}"` : ''}></td>
+    <td>${u.id}</td>
+    <td>${esc(u.nick)}</td>
+    <td>${esc(u.email)}</td>
+    <td>${esc(u.edges?.group?.name || groupById(u.group_users))}</td>
+    <td>${statusBadge(u.status)}</td>
+    <td class="muted">${esc((u.created_at || '').replace('T', ' ').slice(0, 16))}</td>
+    <td>${ops}</td>
+  </tr>`;
+  }).join('') || `<tr><td colspan="8" class="muted">${t('noData')}</td></tr>`;
+
+  document.querySelectorAll('.ck').forEach(cb => cb.onchange = e => {
+    const id = +e.target.dataset.id;
+    e.target.checked ? selected.add(id) : selected.delete(id);
+    syncSel();
+  });
+  const rows = users.filter(u => !isSelf(u));       // 全选时跳过自己
+  const allCb = $('allSel');
+  allCb.checked = rows.length > 0 && rows.every(u => selected.has(u.id));
+  allCb.indeterminate = !allCb.checked && rows.some(u => selected.has(u.id));
+  syncSel();
+}
+function syncSel() {
+  $('selInfo').innerHTML = t('selectedOf', {n: selected.size, total: totalItems});
+  ['btnDel', 'btnBan', 'btnUnban'].forEach(id => $(id).disabled = selected.size === 0);
+}
+
+/* ---------- batch ops ---------- */
+async function batchDelete(ids) {
+  ids = ids.filter(id => id !== selfId());          // 兜底：任何删除操作都排除当前登录账号
+  if (!ids.length) throw new Error(t('cannotDeleteSelf'));
+  await api('POST', '/admin/user/batch/delete', {ids});
+}
+async function delOne(id) {
+  if (!confirm(t('delConfirmOne', {id}))) return;
+  try { await batchDelete([id]); toast(t('delOk')); selected.delete(id); load(); }
+  catch (e) { toast(esc(t('delFail')) + esc(e.message), false); }
+}
+async function toggleBan(id, target) {
+  try {
+    const u = await api('GET', '/admin/user/' + id);
+    await api('PUT', '/admin/user/' + id, {user: {...u, status: target}, two_fa: 'clear'});
+    toast(t(target === 'active' ? 'unbanDone' : 'banDone', {id}));
+    load();
+  } catch (e) { toast(esc(t('opFail')) + esc(e.message), false); }
+}
+async function batchToggle(target) {
+  const ids = [...selected].filter(id => id !== selfId());   // 封禁/解封同样排除自己
+  if (!ids.length) return;
+  if (!confirm(t(target === 'active' ? 'unbanConfirm' : 'banConfirm', {n: ids.length}))) return;
+  let ok = 0, errs = [];
+  for (const id of ids) {
+    try { await toggleBanSilent(id, target); ok++; }
+    catch (e) { errs.push(`#${id}: ${esc(e.message)}`); }
+  }
+  toast(esc(t('batchDone', {ok, n: ids.length})) + (errs.length ? esc(t('batchFailSuffix')) + errs.join('；') : ''), !errs.length, 6000);
+  selected.clear(); load();
+}
+async function toggleBanSilent(id, target) {
+  const u = await api('GET', '/admin/user/' + id);
+  await api('PUT', '/admin/user/' + id, {user: {...u, status: target}, two_fa: 'clear'});
+}
+
+/* ---------- csv import ---------- */
+function resolveGroupId(role) {
+  const want = (role || 'user').toLowerCase();
+  const g = groups.find(g => g.name.toLowerCase() === want);
+  if (g) return g.id;
+  return want === 'admin' ? 1 : 2;
+}
+function parseCsv(text) {
+  const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).filter(l => l.trim());
+  if (!lines.length) return [];
+  const split = l => l.split(',').map(s => s.trim());
+  const head = split(lines[0]).map(h => h.toLowerCase());
+  const col = (...names) => head.findIndex(h => names.includes(h));
+  const iu = col('username', 'user', 'nick', 'name'), ie = col('email', 'mail'),
+        ip = col('password', 'pass'), ir = col('role', 'group', 'group_name');
+  const rows = [];
+  for (const line of (iu >= 0 || ie >= 0 ? lines.slice(1) : lines)) {
+    const p = split(line);
+    const email = ie >= 0 ? p[ie] : p[0];
+    if (!email || !email.includes('@')) continue;
+    const user = iu >= 0 ? p[iu] : p[0];
+    rows.push({
+      email,
+      nick: (user || email.split('@')[0]).trim(),
+      password: (ip >= 0 ? p[ip] : '') || 'Temp123456',
+      role: ir >= 0 ? p[ir] : 'user'
+    });
+  }
+  const seen = new Set();
+  return rows.filter(r => !seen.has(r.email) && seen.add(r.email));
+}
+async function runImport(rows) {
+  if (!rows.length) { toast(t('noRows'), false); return; }
+  if (!confirm(t('importConfirm', {n: rows.length}))) return;
+  $('log').innerHTML = ''; $('log').style.display = 'block';
+  log(esc(t('importStart', {n: rows.length})));
+  let ok = 0;
+  for (const r of rows) {
+    try {
+      const d = await api('PUT', '/admin/user', {
+        user: {id: 0, email: r.email, nick: r.nick, status: 'active',
+               group_users: resolveGroupId(r.role), edges: {}},
+        password: r.password
+      });
+      ok++;
+      log(esc(t('importOk', {email: r.email, id: d.id, group: d.edges?.group?.name || groupById(d.group_users)})), 'ok');
+    } catch (e) {
+      log(esc(t('importFail', {email: r.email, err: e.message})), 'err');
+    }
+    await new Promise(rs => setTimeout(rs, 250));
+  }
+  log(esc(t('importDone', {ok, n: rows.length})), ok === rows.length ? 'ok' : 'err');
+  toast(esc(t('importDoneToast', {ok, n: rows.length})), ok === rows.length, 6000);
+  load();
+}
+function acceptRows(rows) {
+  importRows = rows;
+  $('btnImport').disabled = !rows || !rows.length;
+  toast(rows.length ? t('parsedRows', {n: rows.length}) : t('noRows'), !!rows.length);
+}
+
+/* ---------- boot & events ---------- */
+async function boot() {
+  page = 1; load();                              // 列表不依赖用户组，先加载
+  try {
+    const d = await api('POST', '/admin/group', {page: 1, page_size: 50, order_by: 'id',
+                   order_direction: 'asc', conditions: {}});
+    groups = d.groups || [];
+    $('fGroup').innerHTML = `<option value="">${t('allGroups')}</option>` +
+      groups.map(g => `<option value="${g.id}">${esc(g.name)} (#${g.id})</option>`).join('');
+  } catch (e) { console.warn(t('groupsLoadFail'), e.message); }
+}
+$('liBtn').onclick = doLogin;
+$('liPass').addEventListener('keydown', e => e.key === 'Enter' && doLogin());
+$('btnLogout').onclick = () => showLogin();
+$('btnLang').onclick = () => { lang = lang === 'zh' ? 'en' : 'zh'; localStorage.setItem('crbm_lang', lang); applyI18n(); render(); };
+
+// 在 iframe 中运行时显示返回按钮（隐藏真实 URL 场景）
+if (window.self !== window.top) {
+  $('btnBack').style.display = '';
+  $('btnBack').onclick = () => window.parent.postMessage({type: 'closeBatchMgr'}, '*');
+}
+$('btnRefresh').onclick = load;
+$('btnSort').onclick = () => { dir = dir === 'desc' ? 'asc' : 'desc'; $('btnSort').textContent = 'ID ' + (dir === 'desc' ? '↓' : '↑'); load(); };
+$('btnPrev').onclick = () => { if (page > 1) { page--; load(); } };
+$('btnNext').onclick = () => { page++; load(); };
+$('btnDel').onclick = async () => {
+  if (!selected.size) return;
+  if (!confirm(t('delConfirmMany', {n: selected.size}))) return;
+  try { await batchDelete([...selected]); toast(t('delOk')); selected.clear(); load(); }
+  catch (e) { toast(esc(t('delFail')) + esc(e.message), false); }
+};
+$('btnBan').onclick = () => batchToggle('manual_banned');
+$('btnUnban').onclick = () => batchToggle('active');
+$('allSel').onchange = e => {
+  users.forEach(u => {
+    if (isSelf(u)) return;                          // 自己不参与全选
+    e.target.checked ? selected.add(u.id) : selected.delete(u.id);
+  });
+  render();
+};
+let kwTimer;
+$('kw').addEventListener('input', () => { clearTimeout(kwTimer); kwTimer = setTimeout(() => { page = 1; load(); }, 400); });
+$('fGroup').onchange = $('fStatus').onchange = () => { page = 1; load(); };
+$('fSize').onchange = () => { page = 1; load(); };
+$('fCsv').onchange = e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  $('csvPath').value = f.name;
+  const rd = new FileReader();
+  rd.onload = ev => acceptRows(parseCsv(ev.target.result));
+  rd.readAsText(f, 'utf-8');
+};
+$('btnParseText').onclick = () => acceptRows(parseCsv($('csvText').value));
+$('btnImport').onclick = async () => {
+  if (!importRows) return;
+  $('btnImport').disabled = true;
+  await runImport(importRows);
+  importRows = null;
+  $('csvPath').value = '';
+};
+
+/* start: 优先继承 Cloudreve 后台已登录会话（同源 localStorage），避免重复登录 */
+function inheritCloudreveSession() {
+  try {
+    const raw = localStorage.getItem('cloudreve_session');
+    if (!raw) return null;
+    const st = JSON.parse(raw);
+    const uid = st.current;
+    const sess = st.sessions?.[uid];
+    if (!sess?.token?.access_token) return null;
+    return {
+      access_token: sess.token.access_token,
+      refresh_token: sess.token.refresh_token || '',
+      email: sess.user?.email || '',
+      nick: sess.user?.nickname || ''
+    };
+  } catch { return null; }
+}
+
+// 1. 先尝试继承 Cloudreve 原生会话（管理员已登录后台的场景）
+const inherited = inheritCloudreveSession();
+applyI18n();
+if (inherited?.access_token) {
+  session = inherited; save();
+  boot().catch(() => refresh().then(ok => ok ? boot() : showLogin()));
+}
+// 2. 回退：本页上次登录保存的会话
+else {
+  try { session = JSON.parse(localStorage.getItem(LS)) } catch {}
+  if (session?.access_token) boot().catch(() => refresh().then(ok => ok ? boot() : showLogin()));
+  else showLogin();
+}
+</script>
+</body>
+</html>
