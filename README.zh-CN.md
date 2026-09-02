@@ -1,6 +1,7 @@
 # Cloudreve 批量用户管理插件 — 安装与使用文档
 
-> 版本：1.0 · 适用 Cloudreve v4.x · 更新：2026-09-02
+> 派生自 [cloudreve/Cloudreve](https://github.com/cloudreve/Cloudreve) · 许可证：GPL-3.0
+> 版本：1.0 · 已适配 Cloudreve v4.1.5–v4.18.0 · 更新：2026-09-02
 
 ---
 

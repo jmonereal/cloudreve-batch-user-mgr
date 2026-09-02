@@ -1,6 +1,7 @@
 # Cloudreve Batch User Manager Plugin — Installation & Usage Guide
 
-> Version: 1.0 · For Cloudreve v4.x · Updated: 2026-09-02 · [中文文档](README.zh-CN.md)
+> Forked from [cloudreve/Cloudreve](https://github.com/cloudreve/Cloudreve) · License: GPL-3.0
+> Version: 1.0 · Tested on Cloudreve v4.1.5–v4.18.0 · Updated: 2026-09-02 · [中文文档](README.zh-CN.md)
 
 ---
 
