@@ -397,6 +397,41 @@ async function toggleBanSilent(id, target) {
 }
 
 /* ---------- csv import ---------- */
+/* Excel 中文环境默认导出 GBK/GB18030 CSV；强制 utf-8 读会把中文昵称读成乱码。
+   自动识别：BOM → 严格 UTF-8 → 回退 GB18030（覆盖 GBK/GB2312）。 */
+function decodeCsvBuffer(buf) {
+  const b = new Uint8Array(buf);
+  if (b.length >= 3 && b[0] === 0xEF && b[1] === 0xBB && b[2] === 0xBF)
+    return new TextDecoder('utf-8').decode(buf);
+  if (b.length >= 2 && b[0] === 0xFF && b[1] === 0xFE)
+    return new TextDecoder('utf-16le').decode(buf);
+  if (b.length >= 2 && b[0] === 0xFE && b[1] === 0xFF)
+    return new TextDecoder('utf-16be').decode(buf);
+  // 无 BOM：在 UTF-8 / GB18030 间打分选优（Excel 中文 ANSI 导出 = GBK）
+  const tryDecode = (enc, fatal) => {
+    try { return new TextDecoder(enc, {fatal: !!fatal}).decode(buf); }
+    catch { return null; }
+  };
+  const score = s => {
+    if (s == null) return -1e9;
+    let sc = 0;
+    for (const ch of s) {
+      const c = ch.codePointAt(0);
+      if (c === 0xFFFD) sc -= 50;                 // 替换字符，几乎必是错编码
+      else if (c >= 0x4E00 && c <= 0x9FFF) sc += 5; // CJK 常用字
+      else if (c >= 0x3000 && c <= 0x303F) sc += 2; // CJK 标点
+      else if (c >= 0xFF00 && c <= 0xFFEF) sc += 2; // 全角
+      else if (c < 0x80) sc += 1;                  // ASCII
+      else sc -= 1;                                // 其他生僻/噪声
+    }
+    return sc;
+  };
+  const utf8Strict = tryDecode('utf-8', true);
+  if (utf8Strict != null) return utf8Strict;      // 合法 UTF-8 直接用
+  const utf8 = tryDecode('utf-8', false);
+  const gb = tryDecode('gb18030', false) || tryDecode('gbk', false);
+  return score(gb) > score(utf8) ? gb : (utf8 || gb || '');
+}
 function resolveGroupId(role) {
   const want = (role || 'user').toLowerCase();
   const g = groups.find(g => g.name.toLowerCase() === want);
@@ -419,7 +454,8 @@ function parseCsv(text) {
     const user = iu >= 0 ? p[iu] : p[0];
     rows.push({
       email,
-      nick: (user || email.split('@')[0]).trim(),
+      // NFC 规范化，避免组合字符/兼容字符导致的显示异常
+      nick: (user || email.split('@')[0]).trim().normalize('NFC'),
       password: (ip >= 0 ? p[ip] : '') || 'Temp123456',
       role: ir >= 0 ? p[ir] : 'user'
     });
@@ -455,6 +491,15 @@ function acceptRows(rows) {
   importRows = rows;
   $('btnImport').disabled = !rows || !rows.length;
   toast(rows.length ? t('parsedRows', {n: rows.length}) : t('noRows'), !!rows.length);
+  // 预览昵称，便于在导入前发现编码问题
+  const el = $('log');
+  if (rows.length) {
+    el.style.display = 'block';
+    el.innerHTML = '';
+    log(esc(t('parsedRows', {n: rows.length})));
+    rows.slice(0, 8).forEach(r => log(esc(r.nick) + ' &lt;' + esc(r.email) + '&gt;', 'info'));
+    if (rows.length > 8) log('…', 'info');
+  }
 }
 
 /* ---------- boot & events ---------- */
@@ -501,13 +546,16 @@ let kwTimer;
 $('kw').addEventListener('input', () => { clearTimeout(kwTimer); kwTimer = setTimeout(() => { page = 1; load(); }, 400); });
 $('fGroup').onchange = $('fStatus').onchange = () => { page = 1; load(); };
 $('fSize').onchange = () => { page = 1; load(); };
-$('fCsv').onchange = e => {
+$('fCsv').onchange = async e => {
   const f = e.target.files[0];
   if (!f) return;
   $('csvPath').value = f.name;
-  const rd = new FileReader();
-  rd.onload = ev => acceptRows(parseCsv(ev.target.result));
-  rd.readAsText(f, 'utf-8');
+  try {
+    const text = decodeCsvBuffer(await f.arrayBuffer());
+    acceptRows(parseCsv(text));
+  } catch (err) {
+    toast(esc(err.message || String(err)), false);
+  }
 };
 $('btnParseText').onclick = () => acceptRows(parseCsv($('csvText').value));
 $('btnImport').onclick = async () => {

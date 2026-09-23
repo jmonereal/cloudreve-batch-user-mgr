@@ -1,7 +1,6 @@
 # Cloudreve 批量用户管理插件 — 安装与使用文档
 
-> 派生自 [cloudreve/Cloudreve](https://github.com/cloudreve/Cloudreve) · 许可证：GPL-3.0
-> 版本：1.0 · 已适配 Cloudreve v4.1.5–v4.18.0 · 更新：2026-09-02
+> 版本：1.0 · 适用 Cloudreve v4.x · 更新：2026-09-02
 
 ---
 
@@ -218,6 +217,7 @@ li4,li4@example.com,Temp123456,admin
 **特性**：
 - 表头自动识别，列顺序任意
 - 支持文件上传或直接粘贴
+- 自动识别 CSV 编码：UTF-8 / UTF-8 BOM / GBK·GB18030（Excel 中文环境默认导出），避免中文昵称乱码
 - 重复邮箱自动去重
 - 逐行执行，每行独立成功/失败，日志实时显示
 

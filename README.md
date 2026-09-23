@@ -1,7 +1,6 @@
 # Cloudreve Batch User Manager Plugin — Installation & Usage Guide
 
-> Forked from [cloudreve/Cloudreve](https://github.com/cloudreve/Cloudreve) · License: GPL-3.0
-> Version: 1.0 · Tested on Cloudreve v4.1.5–v4.18.0 · Updated: 2026-09-02 · [中文文档](README.zh-CN.md)
+> Version: 1.0 · For Cloudreve v4.x · Updated: 2026-09-02 · [中文文档](README.zh-CN.md)
 
 ---
 
@@ -218,6 +217,7 @@ li4,li4@example.com,Temp123456,admin
 **Features**:
 - Auto header detection, any column order
 - File upload or direct paste
+- Auto-detects CSV encoding: UTF-8 / UTF-8 BOM / GBK·GB18030 (Excel default on Chinese Windows), so Chinese nicknames are not garbled
 - Duplicate emails auto-deduplicated
 - Per-row execution, each row succeeds/fails independently, real-time log
 
